@@ -2,8 +2,18 @@ var TICK_TIME = 1000/60;
 
 var Game=function() {
 	this.actors = {};
+	this.bullets = {};
 	this.active = false;
 }
+
+Game.prototype.rand = function(min, max){return Math.floor(Math.random() * (max - min + 1)) + min;}
+var audio_queue = {};
+Game.prototype.play = function(sound, queue){
+	console.log(typeof queue);
+	console.log('playing '+sound);
+	var audio = new Audio(sound+'.mp3');
+	audio.play();
+};
 
 Game.prototype.update = function(dt) {
 	for(var id in this.actors) {
@@ -11,11 +21,16 @@ Game.prototype.update = function(dt) {
 		actor.myActor = (network.actorId == id);
 		actor.update(dt);
 	}
+	for(var id in this.bullets) {
+		var bullet = this.bullets[id];
+		bullet.myBullet = (network.actorId == bullet.actorId);
+		bullet.update(dt);
+	}
 }
 
 Game.prototype.render = function(ctx) {
 	gctx.fillStyle = "rgb(100, 120, 100)";
-	gctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	gctx.fillRect(0, 0, 1000, 500);
 	gctx.font = "20px Arial";
 	gctx.fillStyle = "rgb(0, 0, 0)";
 	gctx.fillText(network.pingTime+"ms", 10, 30);
@@ -24,6 +39,11 @@ Game.prototype.render = function(ctx) {
 		var actor = this.actors[id];
 		actor.render(gctx);
 	}
+	
+	for(var id in this.bullets) {
+		var bullet = this.bullets[id];
+		bullet.render(gctx);
+	}
 }
 
 Game.prototype.spawnActor = function(actor) {
@@ -31,12 +51,26 @@ Game.prototype.spawnActor = function(actor) {
 	this.actors[actor.id] = actor;
 }
 
+
+Game.prototype.spawnBullet = function(bullet) {
+	bullet.game = this;
+	this.bullets[bullet.id] = bullet;
+}
+
 Game.prototype.destroyActor = function(id) {
 	delete this.actors[id];
 }
 
+Game.prototype.destroyBullet = function(id) {
+	delete this.bullets[id];
+}
+
 Game.prototype.input = function(pos) {
 	network.sendInput(pos);
+}
+
+Game.prototype.move = function(side, enabled) {
+	network.sendMove(side,enabled);
 }
 
 Game.prototype.networkUpdate = function(data) {
@@ -50,7 +84,7 @@ Game.prototype.networkUpdate = function(data) {
 		var val = actorData[id];
 		actor.x = val.x;
 		actor.y = val.y;
-		actor.speed = val.speed;
+		actor.score = val.score;
 	}
 
 	var destroyedActors = {};
@@ -63,6 +97,33 @@ Game.prototype.networkUpdate = function(data) {
 	for(var id in destroyedActors) {
 		this.destroyActor(id);
 	}
+	
+	var bulletData = data.bullets;
+	for(var id in bulletData) {
+		var bullet = this.bullets[id];
+		if(bullet === undefined) {
+			bullet = new Bullet(id);
+			this.spawnBullet(bullet);
+			game.play('pew');
+		}
+		var val = bulletData[id];
+		bullet.x = val.x;
+		bullet.y = val.y;
+		bullet.target = val.target;
+		bullet.actorId = val.actorId;
+	}
+	
+	var destroyedBullets = {};
+	for(var id in this.bullets) {
+		if(bulletData[id] == null) {
+			destroyedBullets[id] = id;
+		}
+	}
+
+	for(var id in destroyedBullets) {
+		this.destroyBullet(id);
+		game.play('211977_71257-lq');
+	}
 }
 
 var game = new Game();
@@ -73,5 +134,5 @@ setInterval(function() {
 	}
 	game.update(TICK_TIME);
 	game.render();
-	network.update();
+	network.update();	
 }, TICK_TIME);

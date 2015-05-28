@@ -1,6 +1,6 @@
 
 //var URL = 'http://localhost:9090';
-var URL = 'http://ios.keitaitoys.com:9090';
+var URL = 'http://game.sanasol.ws:9090';
 
 var Network = function(url) {
 	this.url = url;
@@ -54,6 +54,10 @@ Network.prototype.update = function() {
 
 Network.prototype.sendInput = function(pos) {
 	this.socket.emit('input', pos);
+}
+
+Network.prototype.sendMove = function(side,enabled) {
+	this.socket.emit('move', side, enabled);
 }
 
 var network = new Network(URL);
