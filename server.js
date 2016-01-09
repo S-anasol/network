@@ -41,6 +41,7 @@ for(id in chunks)
 var MAX_SPEED = 4;
 var REQUEST_MIN_TIME = 1000;
 var actorId = 1;
+var monster_id = 1;
 var bulletId = 1;
 
 var Actor = function(id) {
@@ -49,9 +50,21 @@ var Actor = function(id) {
 	this.y = 0;
 	this.chunk = 0;
 	this.score = 0;
+	this.exp = 0;
+	this.lvl = 0;
 	this.speed = {x:0, y:0};
 	this.direction = {left:false, right: false, up: false, down: false};
 	this.active = false;
+}
+
+var Monster = function(id) {
+	this.id = id;
+	this.x = 0;
+	this.y = 0;
+	this.chunk = 0;
+	this.health = 5;
+	this.speed = {x:0, y:0};
+	this.direction = {left:false, right: false, up: false, down: false};
 }
 
 var Bullet = function(id) {
@@ -75,6 +88,92 @@ Actor.prototype.kill = function(enemy) {
 	this.score++; 
 	//console.log('score '.this.score);
 	//console.log(this.score);
+}
+
+Actor.prototype.hit = function(enemy) {
+	console.log(this.id+' hits '+enemy);
+	this.exp++; 
+	//console.log('score '.this.score);
+	//console.log(this.score);
+}
+
+
+Monster.prototype.hit = function(player) {
+	console.log(this.id+' hit by '+player);
+	this.health--;
+	if(this.health <= 0)
+	{
+		console.log('killed by '.player);
+	}
+	//console.log(this.score);
+}
+
+Monster.prototype.update = function(dt) {
+	
+	if(this.direction.left)
+	{
+		this.x = this.x-1;
+	}
+	
+	if(this.direction.up)
+	{
+		this.y = this.y-1;
+	}
+	
+	if(this.direction.right)
+	{
+		this.x = this.x+1;
+	}
+	
+	if(this.direction.down)
+	{
+		this.y = this.y+1;
+	}
+	
+	
+	if(this.x < 0) {
+		this.x = WORLD_WIDTH;
+	}
+	if(this.y < 0) {
+		this.y = WORLD_HEIGHT;
+	}
+	
+	if(this.x > WORLD_WIDTH) {
+		this.x = 0;
+	}
+	if(this.y > WORLD_HEIGHT) {
+		this.y = 0;
+	}
+	
+	var i = Math.ceil(this.x/100);
+	var z = Math.ceil(this.y/100);
+	
+	var old_chunk = this.chunk;
+	
+	this.chunk = ''+i+z;
+	
+	//console.log(old_chunk,this.chunk,this.direction);
+	
+	if(old_chunk != this.chunk)
+	{
+		var left = Math.random() < 0.5 ? true : false;
+		var up = Math.random() < 0.5 ? true : false;
+		this.direction = {left: left, right: left ? false:true, up: up, down: up ? false:true};
+		
+		if((this.direction.left == false && 
+		this.direction.right == false && 
+		this.direction.down == false && 
+		this.direction.up == false)
+		||
+		(this.direction.left == true && 
+		this.direction.right == true && 
+		this.direction.down == true && 
+		this.direction.up == true)
+		)
+		{
+			this.direction = {left:true, right: Math.random() < 0.5 ? true : false, up: true, down: Math.random() < 0.5 ? true : false};
+		}
+	}
 }
 
 Actor.prototype.update = function(dt) {
@@ -124,11 +223,10 @@ Bullet.prototype.update = function(dt) {
 	//this.x = this.x + this.t_x * dt;
 	//this.y = this.y + this.t_y * dt;
 	
-	var acceleration = new Victor(this.target.distanceX(this.position) / 50, this.target.distanceY(this.position) / 50);
+	var acceleration = new Victor(this.target.distanceX(this.position) / (BULLET_LIFETIME/TICK_TIME), this.target.distanceY(this.position) / (BULLET_LIFETIME/TICK_TIME));
 	
 	this.velocity
-	.add(acceleration)
-	.limit(3, 0.6);
+	.add(acceleration);
 	
 	
 	var correction = new Victor(0.8,0.8);
@@ -148,7 +246,22 @@ Bullet.prototype.update = function(dt) {
 
 var Game=function() {
 	this.actors = {};
+	this.monsters = {};
 	this.bullets = {};
+	
+	for(i = 0; i <= 50; i++)
+		{
+			var a = new Monster(monster_id++);
+			a.x = Math.random() * WORLD_WIDTH;
+			a.y = Math.random() * WORLD_HEIGHT + 20;
+			a.speed.x = (MAX_SPEED - Math.random() * MAX_SPEED * 2)*0.1;
+			a.speed.y = (MAX_SPEED - Math.random() * MAX_SPEED * 2)*0.1;
+			
+			a.direction = {left:Math.random() < 0.5 ? true : false, right: Math.random() < 0.5 ? true : false, up: Math.random() < 0.5 ? true : false, down: Math.random() < 0.5 ? true : false};
+			a.health = 5;
+			console.log('start health', a.health,a.direction);
+			this.spawnMonster(a);
+		}
 }
 
 var regular_grid = {};
@@ -163,6 +276,11 @@ Game.prototype.update = function(dt) {
 		actor.update(dt);
 	}
 	
+	for(var id in this.monsters) {
+		var monster = this.monsters[id];
+		monster.update(dt);
+	}
+	
 	for(var id in this.bullets) {
 		var bullet = this.bullets[id];
 		bullet.update(dt);
@@ -170,13 +288,13 @@ Game.prototype.update = function(dt) {
 	
 	for (i in this.bullets) 
 	{
+		var bullet = {radius: 2, x: this.bullets[i].x, y: this.bullets[i].y};
 		//console.log('bullet '+i);
 		for (j in this.actors) 
 		{
 			//console.log('actor '+j);
 			//if(typeof this.actors[j] != "undefined" && typeof this.bullets[j] != "undefined")
 			var actor = {radius: 10, x: this.actors[j].x, y: this.actors[j].y};
-			var bullet = {radius: 2, x: this.bullets[i].x, y: this.bullets[i].y};
 			
 			var dx = actor.x - bullet.x;
 			var dy = actor.y - bullet.y;
@@ -188,8 +306,55 @@ Game.prototype.update = function(dt) {
 					console.log('collision actor: '+j+' and bullet '+i);
 					this.actors[j].die(this.bullets[i].actorId);
 					this.actors[this.bullets[i].actorId].kill(j);
+					this.destroyBullet(i);
 				}
 			}
+		}
+		
+		if(typeof this.bullets[i] != 'undefined')
+		{
+			for (m in this.monsters) 
+			{
+				try
+				{
+					//console.log('actor '+j);
+					//if(typeof this.actors[j] != "undefined" && typeof this.bullets[j] != "undefined")
+					var monster = {radius: 10, x: this.monsters[m].x, y: this.monsters[m].y};
+					
+					var dx = monster.x - bullet.x;
+					var dy = monster.y - bullet.y;
+					var distance = Math.sqrt(dx * dx + dy * dy);
+
+					if (distance < monster.radius + bullet.radius) {
+						console.log('collision monster: '+m+' and bullet '+i);
+						this.monsters[m].hit(this.bullets[i].actorId);
+						this.actors[this.bullets[i].actorId].hit(m);
+						if(this.monsters[m].health <= 0)
+						{
+							this.destroyMonster(m);
+							this.actors[this.bullets[i].actorId].exp += 5;
+						}
+						this.destroyBullet(i);
+					}
+				}catch(err) { console.log(err); }
+			}
+		}
+	}
+	
+	if(Object.keys(this.monsters).length <= 1)
+	{
+		for(i = 0; i <= 5; i++)
+		{
+			var a = new Monster(monster_id++);
+			a.x = Math.random() * WORLD_WIDTH;
+			a.y = Math.random() * WORLD_HEIGHT + 20;
+			a.speed.x = (MAX_SPEED - Math.random() * MAX_SPEED * 2)*0.1;
+			a.speed.y = (MAX_SPEED - Math.random() * MAX_SPEED * 2)*0.1;
+			
+			a.direction = {left:Math.random() < 0.5 ? true : false, right: Math.random() < 0.5 ? true : false, up: Math.random() < 0.5 ? true : false, down: Math.random() < 0.5 ? true : false};
+			a.health = 5;
+			console.log('start health', a.health);
+			this.spawnMonster(a);
 		}
 	}
 }
@@ -199,6 +364,13 @@ Game.prototype.spawnActor = function(actor) {
 	this.actors[actor.id] = actor;
 	
 	console.log('spawn score', actor.score);
+}
+
+Game.prototype.spawnMonster = function(monster) {
+	monster.game = this;
+	this.monsters[monster.id] = monster;
+	
+	console.log('spawn health', monster.health);
 }
 
 Game.prototype.spawnBullet = function(bullet) {
@@ -211,6 +383,11 @@ Game.prototype.destroyActor = function(id) {
 	delete this.actors[id];
 }
 
+Game.prototype.destroyMonster = function(id) {
+	console.log("DestroyMonster: "+id);
+	delete this.monsters[id];
+}
+
 Game.prototype.destroyBullet = function(id) {
 	console.log("destroyBullet: "+id);
 	delete this.bullets[id];
@@ -220,7 +397,13 @@ Game.prototype.gameInfo = function() {
 	var result = {};
 	for(var id in this.actors) {
 		var actor = this.actors[id];
-		result[id] = {x:actor.x, y:actor.y, score:actor.score};
+		result[id] = {x:actor.x, y:actor.y, score:actor.score, exp:actor.exp, lvl:actor.lvl};
+	}
+	
+	var monsters = {};
+	for(var id in this.monsters) {
+		var monster = this.monsters[id];
+		monsters[id] = {x:monster.x, y:monster.y, health:monster.health};
 	}
 	
 	var bullets = {};
@@ -229,7 +412,7 @@ Game.prototype.gameInfo = function() {
 		bullets[id] = {x:bullet.x, y:bullet.y, target:bullet.target, actorId:bullet.actorId};
 	}
 	
-	result = {actors:result,bullets:bullets,map:chunks,world:[WORLD_WIDTH, WORLD_HEIGHT]};
+	result = {monsters:monsters,actors:result,bullets:bullets,map:chunks,world:[WORLD_WIDTH, WORLD_HEIGHT]};
 	return result;
 }
 

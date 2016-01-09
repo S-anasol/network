@@ -5,6 +5,8 @@ var Actor = function(id) {
 	this.myActor = false;
 	this.chunk = 0;
 	this.score = 0;
+	this.exp = 0;
+	this.lvl = 1;
 }
 
 Actor.prototype.update = function(dt) {
